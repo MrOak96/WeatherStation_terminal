@@ -1,8 +1,14 @@
-﻿using Ookii.Dialogs.Wpf;
+﻿using Newtonsoft.Json;
+using Ookii.Dialogs.Wpf;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Windows;
 using WeatherApp.Commands;
+using WeatherApp.Models;
 using WeatherApp.Services;
 
 namespace WeatherApp.ViewModels
@@ -59,14 +65,19 @@ namespace WeatherApp.ViewModels
         /// TODO 02 : Ajouter ImportCommand
         /// </summary>
 
+        public DelegateCommand<string> ImportCommand { get; set; }
+
         /// <summary>
         /// TODO 02 : Ajouter ExportCommand
         /// </summary>
+
+        public DelegateCommand<string> ExportCommand { get; set; }
 
         /// <summary>
         /// TODO 13a : Ajouter ChangeLanguageCommand
         /// </summary>
 
+        public DelegateCommand<string> ChangeLanguageCommand { get; set; }
 
         public List<BaseViewModel> ViewModels
         {
@@ -85,9 +96,15 @@ namespace WeatherApp.ViewModels
             /// TODO 06 : Instancier ExportCommand qui doit appeler la méthode Export
             /// Ne peut s'exécuter que la méthode CanExport retourne vrai
 
+            ExportCommand = new DelegateCommand<string>(Export, CanExport);
+
             /// TODO 03 : Instancier ImportCommand qui doit appeler la méthode Import
 
+            ImportCommand = new DelegateCommand<string>(Import);
+
             /// TODO 13b : Instancier ChangeLanguageCommand qui doit appeler la méthode ChangeLanguage
+
+            ChangeLanguageCommand = new DelegateCommand<string>(ChangeLanguage);
 
             initViewModels();          
 
@@ -149,7 +166,15 @@ namespace WeatherApp.ViewModels
         /// <returns></returns>
         private bool CanExport(string obj)
         {
-            throw new NotImplementedException();
+            /*None worked 4 some reason
+            if (tvm.Temperatures.Any())
+                return true;
+
+            if (tvm.Temperatures.Count() > 0)
+                return true;
+
+            return false;*/
+            return true;
         }
 
         /// <summary>
@@ -175,7 +200,12 @@ namespace WeatherApp.ViewModels
             /// Si la réponse de la boîte de dialogue est vrai
             ///   Garder le nom du fichier dans Filename
             ///   Appeler la méthode saveToFile
-            ///   
+            
+            if(saveFileDialog.ShowDialog() == true)
+            {
+                filename = saveFileDialog.FileName;
+                saveToFile();
+            }
 
         }
 
@@ -192,7 +222,15 @@ namespace WeatherApp.ViewModels
             /// Initilisation du StreamWriter
             /// Sérialiser la collection de températures
             /// Écrire dans le fichier
-            /// Fermer le fichier           
+            /// Fermer le fichier   
+
+            var res = JsonConvert.SerializeObject(tvm.Temperatures, Formatting.Indented);
+
+            using (var tw = new StreamWriter(Filename, false))
+            {
+                tw.WriteLine(res);
+                tw.Close();
+            }
 
         }
 
@@ -212,6 +250,16 @@ namespace WeatherApp.ViewModels
             /// Désérialiser dans un liste de TemperatureModel
             /// Remplacer le contenu de la collection de Temperatures avec la nouvelle liste
 
+            string content = "";
+            using (var sr = new StreamReader(Filename))
+            {
+                content += sr.ReadToEnd();
+            }
+
+            tvm.Temperatures.Clear();
+
+            if (content != "")
+                tvm.Temperatures = JsonConvert.DeserializeObject<ObservableCollection<TemperatureModel>>(content);
         }
 
         private void Import(string obj)
@@ -233,6 +281,12 @@ namespace WeatherApp.ViewModels
             ///   Garder le nom du fichier dans Filename
             ///   Appeler la méthode openFromFile
 
+            if (openFileDialog.ShowDialog() == true)
+            {
+                Filename = openFileDialog.FileName;
+                openFromFile();
+            }
+
         }
 
         private void ChangeLanguage (string language)
@@ -240,6 +294,20 @@ namespace WeatherApp.ViewModels
             /// TODO 13c : Compléter la méthode pour permettre de changer la langue
             /// Ne pas oublier de demander à l'utilisateur de redémarrer l'application
             /// Aide : ApiConsumerDemo
+            
+            Properties.Settings.Default.Language = language;
+            Properties.Settings.Default.Save();
+
+            if (MessageBox.Show($"{ Properties.Resources.msg_restart}", Properties.Resources.wn_warning, MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                restart();
+        }
+
+        void restart()
+        {
+            var filename = Application.ResourceAssembly.Location;
+            var newFile = Path.ChangeExtension(filename, ".exe");
+            Process.Start(newFile);
+            Application.Current.Shutdown();
         }
 
         #endregion
